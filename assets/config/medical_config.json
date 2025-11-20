@@ -1,0 +1,43 @@
+{
+  "hospitales": [
+    {
+      "nombre": "Departamental",
+      "codigo": "01"
+    }
+  ],
+  "consultorios": [
+    {
+      "nombre": "101 A",
+      "codigo": "01",
+      "codigo_hospital": "01"
+    },
+    {
+      "nombre": "102 B",
+      "codigo": "02",
+      "codigo_hospital": "01"
+    },
+    {
+      "nombre": "103 C",
+      "codigo": "03",
+      "codigo_hospital": "01"
+    }
+  ],
+  "focos": [
+    {
+      "nombre": "Aórtico",
+      "codigo": "01"
+    },
+    {
+      "nombre": "Pulmonar",
+      "codigo": "02"
+    },
+    {
+      "nombre": "Tricuspídeo",
+      "codigo": "03"
+    },
+    {
+      "nombre": "Mitral",
+      "codigo": "04"
+    }
+  ]
+}
