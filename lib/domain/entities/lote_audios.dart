@@ -1,3 +1,6 @@
+// lib/domain/entities/lote_audios.dart
+import 'package:equatable/equatable.dart';
+
 /// Representa un lote de audios a procesar
 class LoteAudios extends Equatable {
   final List<AudioParaProcesar> audios;
