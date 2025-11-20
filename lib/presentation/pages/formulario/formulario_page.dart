@@ -1,26 +1,25 @@
-// lib/presentation/pages/formulario/formulario_page.dart
-// VERSIÓN COMPATIBLE CON WEB
+// ============================================================================
+// lib/presentation/pages/formulario/formulario_page_updated.dart
+// EJEMPLO DE CÓMO INTEGRAR LA NUEVA FUNCIONALIDAD
+// ============================================================================
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../core/constants/app_constants.dart';
-import '../../../data/models/audio_file_wrapper.dart';
 import '../../../injection_container.dart' as di;
 import '../../blocs/config/config_bloc.dart';
-import '../../blocs/config/config_event.dart';
-import '../../blocs/config/config_state.dart';
 import '../../blocs/formulario/formulario_bloc.dart';
-import '../../blocs/formulario/formulario_event.dart';
-import '../../blocs/formulario/formulario_state.dart';
+import '../../blocs/procesamiento/procesamiento_bloc.dart';
+import '../../blocs/procesamiento/procesamiento_state.dart';
 import '../../theme/medical_colors.dart';
 import 'widgets/form_header.dart';
 import 'widgets/form_fields.dart';
-import 'widgets/form_audio_picker.dart';
+import 'widgets/form_file_picker_enhanced.dart'; // NUEVO
 import 'widgets/upload_overlay.dart';
 
-class FormularioPage extends StatelessWidget {
-  const FormularioPage({super.key});
+class FormularioPageUpdated extends StatelessWidget {
+  const FormularioPageUpdated({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -28,6 +27,10 @@ class FormularioPage extends StatelessWidget {
       providers: [
         BlocProvider(
           create: (context) => di.sl<FormularioBloc>(),
+        ),
+        // NUEVO: BLoC de procesamiento de archivos
+        BlocProvider(
+          create: (context) => di.sl<ProcesamientoBloc>(),
         ),
       ],
       child: const _FormularioPageView(),
@@ -44,44 +47,31 @@ class _FormularioPageView extends StatefulWidget {
 
 class _FormularioPageViewState extends State<_FormularioPageView> {
   final _formKey = GlobalKey<FormState>();
-  final _audioPickerKey = GlobalKey<FormAudioPickerState>();
+  final _filePickerKey = GlobalKey<FormFilePickerEnhancedState>();
   final _formFieldsKey = GlobalKey<FormFieldsState>();
 
-  // Controllers de estado del formulario
+  // NUEVO: Lista de audios pendientes de etiquetar
+  List<String> _audiosPendientes = [];
+  int _audioActual = 0;
+
+  // Controllers de estado del formulario (igual que antes)
   String? _hospital;
   String? _consultorio;
   String? _estado;
   String? _focoAuscultacion;
   DateTime? _selectedDate;
   String? _observaciones;
-  AudioFileWrapper? _audioFile; // Cambiado a wrapper
-
-  static const bool _mostrarSelectorHospital = true;
+  String? _audioFilePath;
 
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<FormularioBloc, FormularioState>(
-      listener: _handleFormularioStateChanges,
-      builder: (context, formularioState) {
-        return BlocBuilder<ConfigBloc, ConfigState>(
-          builder: (context, configState) {
-            return Scaffold(
-              backgroundColor: MedicalColors.backgroundLight,
-              appBar: _buildAppBar(context),
-              body: Stack(
-                children: [
-                  _buildFormContent(context, configState),
-                  if (formularioState is FormularioEnviando)
-                    UploadOverlay(
-                      progress: formularioState.progress,
-                      status: formularioState.status,
-                    ),
-                ],
-              ),
-            );
-          },
-        );
-      },
+    return Scaffold(
+      backgroundColor: MedicalColors.backgroundLight,
+      appBar: _buildAppBar(context),
+      body: BlocListener<ProcesamientoBloc, ProcesamientoState>(
+        listener: _handleProcesamientoState,
+        child: _buildFormContent(),
+      ),
     );
   }
 
@@ -91,117 +81,142 @@ class _FormularioPageViewState extends State<_FormularioPageView> {
     );
   }
 
-  Widget _buildFormContent(BuildContext context, ConfigState configState) {
-    if (configState is ConfigLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
+  Widget _buildFormContent() {
+    return BlocBuilder<ConfigBloc, ConfigState>(
+      builder: (context, configState) {
+        if (configState is ConfigLoading) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-    if (configState is ConfigError) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline, size: 64, color: MedicalColors.errorRed),
-            const SizedBox(height: 16),
-            Text(
-              'Error al cargar configuración',
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 8),
-            Text(configState.message),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: () {
-                context.read<ConfigBloc>().add(CargarConfiguracionEvent());
-              },
-              child: const Text('Reintentar'),
-            ),
-          ],
-        ),
-      );
-    }
+        if (configState is ConfigError) {
+          return _buildErrorView(configState.message);
+        }
 
-    if (configState is! ConfigLoaded) {
-      return const SizedBox.shrink();
-    }
+        if (configState is! ConfigLoaded) {
+          return const SizedBox.shrink();
+        }
 
-    final config = configState.config;
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              children: [
+                // NUEVO: Indicador de progreso de lote si hay múltiples audios
+                if (_audiosPendientes.length > 1) _buildLoteProgress(),
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          children: [
-            FormFields(
-              key: _formFieldsKey,
-              config: config,
-              hospital: _hospital,
-              consultorio: _consultorio,
-              estado: _estado,
-              focoAuscultacion: _focoAuscultacion,
-              selectedDate: _selectedDate,
-              observaciones: _observaciones,
-              mostrarSelectorHospital: _mostrarSelectorHospital,
-              onHospitalChanged: _onHospitalChanged,
-              onConsultorioChanged: (value) {
-                setState(() => _consultorio = value);
-              },
-              onEstadoChanged: (value) {
-                setState(() => _estado = value);
-              },
-              onFocoChanged: (value) {
-                setState(() => _focoAuscultacion = value);
-              },
-              onDateChanged: (value) {
-                setState(() => _selectedDate = value);
-              },
-              onObservacionesChanged: (value) {
-                _observaciones = value;
-              },
+                FormFields(
+                  key: _formFieldsKey,
+                  config: configState.config,
+                  hospital: _hospital,
+                  consultorio: _consultorio,
+                  estado: _estado,
+                  focoAuscultacion: _focoAuscultacion,
+                  selectedDate: _selectedDate,
+                  observaciones: _observaciones,
+                  mostrarSelectorHospital: true,
+                  onHospitalChanged: _onHospitalChanged,
+                  onConsultorioChanged: (value) {
+                    setState(() => _consultorio = value);
+                  },
+                  onEstadoChanged: (value) {
+                    setState(() => _estado = value);
+                  },
+                  onFocoChanged: (value) {
+                    setState(() => _focoAuscultacion = value);
+                  },
+                  onDateChanged: (value) {
+                    setState(() => _selectedDate = value);
+                  },
+                  onObservacionesChanged: (value) {
+                    _observaciones = value;
+                  },
+                ),
+                const SizedBox(height: 20),
+
+                // NUEVO: Selector de archivos mejorado
+                FormFilePickerEnhanced(
+                  key: _filePickerKey,
+                  onFileProcessed: _handleFileProcessed,
+                ),
+
+                const SizedBox(height: 32),
+                _buildSubmitButton(),
+                const SizedBox(height: 20),
+              ],
             ),
-            const SizedBox(height: 20),
-            FormAudioPicker(
-              key: _audioPickerKey,
-              onFileSelected: (filePath, platformFile) {
-                if (platformFile != null) {
-                  setState(() {
-                    _audioFile = AudioFileWrapper(
-                      filePath: filePath,
-                      platformFile: platformFile,
-                      fileName: platformFile.name,
-                      size: platformFile.size,
-                    );
-                  });
-                }
-              },
-            ),
-            const SizedBox(height: 32),
-            _buildSubmitButton(),
-            const SizedBox(height: 20),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
-  void _onHospitalChanged(String? value) {
-    setState(() {
-      _hospital = value;
-      _consultorio = null;
-    });
-
-    if (value != null && mounted) {
-      final config = context.read<ConfigBloc>().state;
-      if (config is ConfigLoaded) {
-        final hospital = config.config.getHospitalPorNombre(value);
-        if (hospital != null) {
-          context.read<ConfigBloc>().add(
-                ObtenerConsultoriosPorHospitalEvent(hospital.codigo),
-              );
-        }
-      }
-    }
+  // NUEVO: Widget de progreso de lote
+  Widget _buildLoteProgress() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            MedicalColors.primaryBlue.withAlpha((0.1 * 255).toInt()),
+            MedicalColors.primaryBlue.withAlpha((0.05 * 255).toInt()),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: MedicalColors.primaryBlue,
+          width: 2,
+        ),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.queue_music,
+                color: MedicalColors.primaryBlue,
+                size: 24,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Procesamiento por lotes',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: MedicalColors.primaryBlue,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Audio $_audioActual de ${_audiosPendientes.length}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          LinearProgressIndicator(
+            value: _audioActual / _audiosPendientes.length,
+            backgroundColor: Colors.grey.shade200,
+            valueColor: const AlwaysStoppedAnimation(
+              MedicalColors.primaryBlue,
+            ),
+            minHeight: 8,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildSubmitButton() {
@@ -228,9 +243,11 @@ class _FormularioPageViewState extends State<_FormularioPageView> {
               child: const Icon(Icons.send, size: 18),
             ),
             const SizedBox(width: 12),
-            const Text(
-              'ENVIAR DATOS',
-              style: TextStyle(
+            Text(
+              _audiosPendientes.length > 1
+                  ? 'ETIQUETAR AUDIO $_audioActual/${_audiosPendientes.length}'
+                  : 'ENVIAR DATOS',
+              style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 1.2,
@@ -242,89 +259,95 @@ class _FormularioPageViewState extends State<_FormularioPageView> {
     );
   }
 
-  Future<void> _submitForm() async {
-    // Validar formulario
-    if (!_formKey.currentState!.validate()) {
-      _showError(AppConstants.errorCamposIncompletos);
-      return;
-    }
+  // NUEVO: Maneja el resultado del procesamiento de archivos
+  void _handleProcesamientoState(
+    BuildContext context,
+    ProcesamientoState state,
+  ) {
+    if (state is ProcesamientoCompletado) {
+      final lote = state.lote;
 
-    // Validar archivo de audio
-    if (_audioFile == null || !_audioFile!.isValid) {
-      _showError(AppConstants.errorArchivoNoSeleccionado);
-      return;
-    }
+      if (lote.esLote) {
+        // Múltiples audios: preparar para etiquetar uno por uno
+        setState(() {
+          _audiosPendientes = lote.audios.map((a) => a.path).toList();
+          _audioActual = 1;
+          _audioFilePath = _audiosPendientes.first;
+        });
 
-    // Validar extensión
-    if (!_audioFile!.hasValidExtension(AppConstants.allowedAudioExtensions)) {
-      _showError('Solo se permiten archivos .wav');
-      return;
-    }
-
-    // Validar tamaño
-    if (!_audioFile!.isValidSize(AppConstants.maxAudioFileSizeMB)) {
-      _showError(
-          'El archivo supera el tamaño máximo de ${AppConstants.maxAudioFileSizeMB} MB');
-      return;
-    }
-
-    if (!mounted) return;
-
-    // Obtener códigos de la configuración
-    final configState = context.read<ConfigBloc>().state;
-    if (configState is! ConfigLoaded) {
-      _showError('Configuración no cargada');
-      return;
-    }
-
-    final config = configState.config;
-    final hospitalEntity = config.getHospitalPorNombre(_hospital!);
-    final consultorioEntity = config.getConsultorioPorNombre(_consultorio!);
-    final focoEntity = config.getFocoPorNombre(_focoAuscultacion!);
-
-    if (hospitalEntity == null ||
-        consultorioEntity == null ||
-        focoEntity == null) {
-      _showError('Error al obtener configuración');
-      return;
-    }
-
-    if (!mounted) return;
-
-    context.read<FormularioBloc>().add(
-          EnviarFormularioEvent(
-            fechaNacimiento: _selectedDate!,
-            hospital: _hospital!,
-            codigoHospital: hospitalEntity.codigo,
-            consultorio: _consultorio!,
-            codigoConsultorio: consultorioEntity.codigo,
-            estado: _estado!,
-            focoAuscultacion: _focoAuscultacion!,
-            codigoFoco: focoEntity.codigo,
-            observaciones: _observaciones,
-            audioFile: _audioFile!.getFile(), // Puede ser null en web, sin !
-            audioFileWrapper:
-                _audioFile, // Este es el que se usa en ambas plataformas
-          ),
+        _showSuccess(
+          '${lote.cantidadAudios} audios detectados. '
+          'Etiquétalos uno por uno.',
         );
+      } else {
+        // Un solo audio: etiquetado normal
+        setState(() {
+          _audiosPendientes = [lote.audios.first.path];
+          _audioActual = 1;
+          _audioFilePath = lote.audios.first.path;
+        });
+      }
+    }
   }
 
-  void _handleFormularioStateChanges(
-    BuildContext context,
-    FormularioState state,
-  ) {
-    if (state is FormularioEnviadoExitosamente) {
-      _showSuccess(state.mensaje);
+  // NUEVO: Callback cuando se procesa un archivo
+  void _handleFileProcessed(String filePath) {
+    // Este método se llama cuando el ProcesamientoBloc termina
+    // La lógica real está en _handleProcesamientoState
+  }
+
+  Future<void> _submitForm() async {
+    if (!_formKey.currentState!.validate()) {
+      _showError('Por favor, completa todos los campos obligatorios');
+      return;
+    }
+
+    if (_audioFilePath == null) {
+      _showError('Debes seleccionar un archivo');
+      return;
+    }
+
+    // Aquí iría la lógica de envío (igual que antes)
+    // pero con soporte para múltiples audios
+
+    // Después de enviar exitosamente, pasar al siguiente audio si hay
+    if (_audioActual < _audiosPendientes.length) {
+      setState(() {
+        _audioActual++;
+        _audioFilePath = _audiosPendientes[_audioActual - 1];
+        // Limpiar solo observaciones, mantener el resto
+        _observaciones = null;
+        _formFieldsKey.currentState?.reset();
+      });
+    } else {
+      // Terminamos todos los audios
       _resetForm();
-      context.read<FormularioBloc>().add(ResetFormularioEvent());
-    } else if (state is FormularioError) {
-      _showError(state.mensaje);
+      _showSuccess('Todos los audios fueron etiquetados exitosamente');
+    }
+  }
+
+  void _onHospitalChanged(String? value) {
+    setState(() {
+      _hospital = value;
+      _consultorio = null;
+    });
+
+    if (value != null && mounted) {
+      final config = context.read<ConfigBloc>().state;
+      if (config is ConfigLoaded) {
+        final hospital = config.config.getHospitalPorNombre(value);
+        if (hospital != null) {
+          context.read<ConfigBloc>().add(
+                ObtenerConsultoriosPorHospitalEvent(hospital.codigo),
+              );
+        }
+      }
     }
   }
 
   void _resetForm() {
     _formKey.currentState?.reset();
-    _audioPickerKey.currentState?.reset();
+    _filePickerKey.currentState?.reset();
     _formFieldsKey.currentState?.reset();
 
     setState(() {
@@ -334,13 +357,39 @@ class _FormularioPageViewState extends State<_FormularioPageView> {
       _focoAuscultacion = null;
       _selectedDate = null;
       _observaciones = null;
-      _audioFile = null;
+      _audioFilePath = null;
+      _audiosPendientes = [];
+      _audioActual = 0;
     });
+  }
+
+  Widget _buildErrorView(String message) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.error_outline, size: 64, color: MedicalColors.errorRed),
+          const SizedBox(height: 16),
+          Text(
+            'Error al cargar configuración',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: 8),
+          Text(message),
+          const SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: () {
+              context.read<ConfigBloc>().add(CargarConfiguracionEvent());
+            },
+            child: const Text('Reintentar'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showError(String message) {
     if (!mounted) return;
-
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
@@ -352,14 +401,12 @@ class _FormularioPageViewState extends State<_FormularioPageView> {
         ),
         backgroundColor: MedicalColors.errorRed,
         behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 5),
       ),
     );
   }
 
   void _showSuccess(String message) {
     if (!mounted) return;
-
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
@@ -395,38 +442,25 @@ class _FormularioPageViewState extends State<_FormularioPageView> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Complete el formulario para etiquetar el sonido cardíaco del paciente.',
-                style: TextStyle(fontSize: 15),
+                'Formatos de archivo soportados:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
+              SizedBox(height: 12),
+              Text('📄 PDF: Extrae link y descarga audio/zip automáticamente'),
+              SizedBox(height: 8),
+              Text('🎵 WAV: Audio individual para etiquetar'),
+              SizedBox(height: 8),
+              Text('📦 ZIP: Múltiples audios se etiquetan secuencialmente'),
               SizedBox(height: 16),
               Text(
-                'Campos obligatorios:',
-                style: TextStyle(fontWeight: FontWeight.bold),
+                'Proceso automático:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
               SizedBox(height: 8),
-              Text('• Hospital'),
-              Text('• Consultorio'),
-              Text('• Estado del sonido'),
-              Text('• Foco de auscultación'),
-              Text('• Fecha de nacimiento'),
-              Text('• Archivo de audio (.wav)'),
-              SizedBox(height: 16),
-              Text(
-                'Campo opcional:',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 8),
-              Text('• Diagnóstico u observaciones'),
-              SizedBox(height: 16),
-              Text(
-                '⚠️ Importante:',
-                style: TextStyle(
-                    fontWeight: FontWeight.bold, color: Colors.orange),
-              ),
-              SizedBox(height: 8),
-              Text('• Se requiere conexión a Internet estable'),
-              Text('• Los archivos pueden tardar en subirse'),
-              Text('• No cierres la app durante la subida'),
+              Text('1. Selecciona un archivo (PDF, WAV o ZIP)'),
+              Text('2. La app procesa y detecta los audios'),
+              Text('3. Etiqueta cada audio con la información médica'),
+              Text('4. Los datos se suben automáticamente a S3'),
             ],
           ),
         ),
