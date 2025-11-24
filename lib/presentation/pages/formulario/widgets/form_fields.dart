@@ -234,7 +234,7 @@ class FormFieldsState extends State<FormFields> {
     required Function(String?) onChanged,
   }) {
     return DropdownButtonFormField<String>(
-      value: value,
+      initialValue: value,
       decoration: InputDecoration(
         labelText: label,
         labelStyle: const TextStyle(
@@ -290,6 +290,13 @@ class FormFieldsState extends State<FormFields> {
   }
 
   Widget _buildDatePicker(BuildContext context) {
+    // ✅ CORRECCIÓN: Usar un TextEditingController en lugar de controller inline
+    final dateController = TextEditingController(
+      text: widget.selectedDate != null
+          ? '${widget.selectedDate!.day.toString().padLeft(2, '0')}/${widget.selectedDate!.month.toString().padLeft(2, '0')}/${widget.selectedDate!.year}'
+          : '',
+    );
+
     return TextFormField(
       decoration: InputDecoration(
         labelText: 'Fecha de nacimiento',
@@ -344,11 +351,7 @@ class FormFieldsState extends State<FormFields> {
       ),
       readOnly: true,
       onTap: () => _selectDate(context),
-      controller: TextEditingController(
-        text: widget.selectedDate != null
-            ? '${widget.selectedDate!.day.toString().padLeft(2, '0')}/${widget.selectedDate!.month.toString().padLeft(2, '0')}/${widget.selectedDate!.year}'
-            : '',
-      ),
+      controller: dateController, // ✅ Usar el controller local
       validator: (v) =>
           widget.selectedDate == null ? 'Selecciona una fecha' : null,
       style: const TextStyle(

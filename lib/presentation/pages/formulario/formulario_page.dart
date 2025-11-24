@@ -1,25 +1,21 @@
-// ============================================================================
-// lib/presentation/pages/formulario/formulario_page_updated.dart
-// EJEMPLO DE CÓMO INTEGRAR LA NUEVA FUNCIONALIDAD
-// ============================================================================
-
-import 'dart:io';
+// lib/presentation/pages/formulario/formulario_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../injection_container.dart' as di;
 import '../../blocs/config/config_bloc.dart';
+import '../../blocs/config/config_state.dart'; // ✅ AGREGADO
+import '../../blocs/config/config_event.dart'; // ✅ AGREGADO
 import '../../blocs/formulario/formulario_bloc.dart';
 import '../../blocs/procesamiento/procesamiento_bloc.dart';
 import '../../blocs/procesamiento/procesamiento_state.dart';
 import '../../theme/medical_colors.dart';
 import 'widgets/form_header.dart';
 import 'widgets/form_fields.dart';
-import 'widgets/form_file_picker_enhanced.dart'; // NUEVO
-import 'widgets/upload_overlay.dart';
+import 'widgets/form_file_picker_enhanced.dart';
 
-class FormularioPageUpdated extends StatelessWidget {
-  const FormularioPageUpdated({super.key});
+class FormularioPage extends StatelessWidget {
+  const FormularioPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +24,6 @@ class FormularioPageUpdated extends StatelessWidget {
         BlocProvider(
           create: (context) => di.sl<FormularioBloc>(),
         ),
-        // NUEVO: BLoC de procesamiento de archivos
         BlocProvider(
           create: (context) => di.sl<ProcesamientoBloc>(),
         ),
@@ -50,11 +45,11 @@ class _FormularioPageViewState extends State<_FormularioPageView> {
   final _filePickerKey = GlobalKey<FormFilePickerEnhancedState>();
   final _formFieldsKey = GlobalKey<FormFieldsState>();
 
-  // NUEVO: Lista de audios pendientes de etiquetar
+  // Lista de audios pendientes de etiquetar
   List<String> _audiosPendientes = [];
   int _audioActual = 0;
 
-  // Controllers de estado del formulario (igual que antes)
+  // Controllers de estado del formulario
   String? _hospital;
   String? _consultorio;
   String? _estado;
@@ -102,7 +97,7 @@ class _FormularioPageViewState extends State<_FormularioPageView> {
             key: _formKey,
             child: Column(
               children: [
-                // NUEVO: Indicador de progreso de lote si hay múltiples audios
+                // Indicador de progreso de lote si hay múltiples audios
                 if (_audiosPendientes.length > 1) _buildLoteProgress(),
 
                 FormFields(
@@ -134,7 +129,7 @@ class _FormularioPageViewState extends State<_FormularioPageView> {
                 ),
                 const SizedBox(height: 20),
 
-                // NUEVO: Selector de archivos mejorado
+                // Selector de archivos mejorado
                 FormFilePickerEnhanced(
                   key: _filePickerKey,
                   onFileProcessed: _handleFileProcessed,
@@ -151,7 +146,6 @@ class _FormularioPageViewState extends State<_FormularioPageView> {
     );
   }
 
-  // NUEVO: Widget de progreso de lote
   Widget _buildLoteProgress() {
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
@@ -259,7 +253,6 @@ class _FormularioPageViewState extends State<_FormularioPageView> {
     );
   }
 
-  // NUEVO: Maneja el resultado del procesamiento de archivos
   void _handleProcesamientoState(
     BuildContext context,
     ProcesamientoState state,
@@ -268,7 +261,6 @@ class _FormularioPageViewState extends State<_FormularioPageView> {
       final lote = state.lote;
 
       if (lote.esLote) {
-        // Múltiples audios: preparar para etiquetar uno por uno
         setState(() {
           _audiosPendientes = lote.audios.map((a) => a.path).toList();
           _audioActual = 1;
@@ -280,7 +272,6 @@ class _FormularioPageViewState extends State<_FormularioPageView> {
           'Etiquétalos uno por uno.',
         );
       } else {
-        // Un solo audio: etiquetado normal
         setState(() {
           _audiosPendientes = [lote.audios.first.path];
           _audioActual = 1;
@@ -290,9 +281,7 @@ class _FormularioPageViewState extends State<_FormularioPageView> {
     }
   }
 
-  // NUEVO: Callback cuando se procesa un archivo
   void _handleFileProcessed(String filePath) {
-    // Este método se llama cuando el ProcesamientoBloc termina
     // La lógica real está en _handleProcesamientoState
   }
 
@@ -307,20 +296,18 @@ class _FormularioPageViewState extends State<_FormularioPageView> {
       return;
     }
 
-    // Aquí iría la lógica de envío (igual que antes)
-    // pero con soporte para múltiples audios
+    // Aquí iría la lógica de envío
+    // [IMPLEMENTAR: Lógica de envío del formulario]
 
-    // Después de enviar exitosamente, pasar al siguiente audio si hay
+    // Después de enviar exitosamente
     if (_audioActual < _audiosPendientes.length) {
       setState(() {
         _audioActual++;
         _audioFilePath = _audiosPendientes[_audioActual - 1];
-        // Limpiar solo observaciones, mantener el resto
         _observaciones = null;
         _formFieldsKey.currentState?.reset();
       });
     } else {
-      // Terminamos todos los audios
       _resetForm();
       _showSuccess('Todos los audios fueron etiquetados exitosamente');
     }

@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:archive/archive.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
-import '../../../../core/errors/exceptions.dart';
+import '../../../core/errors/exceptions.dart';
 
 abstract class ZipDataSource {
   /// Descomprime un archivo ZIP y retorna los archivos WAV
@@ -42,7 +42,7 @@ class ZipDataSourceImpl implements ZipDataSource {
       }
 
       if (wavFiles.isEmpty) {
-        throw FileException('No se encontraron archivos WAV en el ZIP');
+        throw const FileException('No se encontraron archivos WAV en el ZIP');
       }
 
       return wavFiles;

@@ -1,65 +1,70 @@
-// lib/data/datasources/zip_datasource.dart
 import 'dart:io';
-import 'package:archive/archive.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as path;
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 import '../../../core/errors/exceptions.dart';
 
-abstract class ZipDataSource {
-  /// Descomprime un archivo ZIP y retorna los archivos WAV
-  Future<List<File>> descomprimirZip(File zipFile);
+abstract class PdfDataSource {
+  /// Extrae el primer link encontrado en un PDF
+  Future<String?> extraerLink(File pdfFile);
 
-  /// Verifica si un archivo es ZIP válido
-  Future<bool> esZipValido(File file);
+  /// Extrae todo el texto del PDF
+  Future<String?> extraerTexto(File pdfFile);
 }
 
-class ZipDataSourceImpl implements ZipDataSource {
+class PdfDataSourceImpl implements PdfDataSource {
   @override
-  Future<List<File>> descomprimirZip(File zipFile) async {
+  Future<String?> extraerLink(File pdfFile) async {
     try {
-      // Leer bytes del ZIP
-      final bytes = await zipFile.readAsBytes();
-      final archive = ZipDecoder().decodeBytes(bytes);
+      final bytes = await pdfFile.readAsBytes();
+      final document = PdfDocument(inputBytes: bytes);
 
-      // Directorio temporal para extraer
-      final tempDir = await getTemporaryDirectory();
-      final extractPath = path.join(
-        tempDir.path,
-        'extracted_${DateTime.now().millisecondsSinceEpoch}',
-      );
-      final extractDir = Directory(extractPath);
-      await extractDir.create(recursive: true);
+      // Buscar anotaciones (links) en todas las páginas
+      for (int i = 0; i < document.pages.count; i++) {
+        final page = document.pages[i];
 
-      // Extraer archivos WAV
-      final wavFiles = <File>[];
-
-      for (final file in archive) {
-        if (file.isFile && file.name.toLowerCase().endsWith('.wav')) {
-          final filePath = path.join(extractPath, path.basename(file.name));
-          final outputFile = File(filePath);
-          await outputFile.writeAsBytes(file.content as List<int>);
-          wavFiles.add(outputFile);
+        // Buscar anotaciones de link
+        for (int j = 0; j < page.annotations.count; j++) {
+          final annotation = page.annotations[j];
+          if (annotation is PdfUriAnnotation) {
+            final uri = annotation.uri;
+            document.dispose();
+            return uri;
+          }
         }
       }
 
-      if (wavFiles.isEmpty) {
-        throw FileException('No se encontraron archivos WAV en el ZIP');
+      // Si no hay anotaciones, buscar en el texto
+      final texto = await extraerTexto(pdfFile);
+      if (texto != null) {
+        final urlPattern = RegExp(
+          r'https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)',
+        );
+        final match = urlPattern.firstMatch(texto);
+        if (match != null) {
+          document.dispose();
+          return match.group(0);
+        }
       }
 
-      return wavFiles;
+      document.dispose();
+      return null;
     } catch (e) {
-      throw FileException('Error al descomprimir ZIP: $e');
+      throw FileException('Error al extraer link del PDF: $e');
     }
   }
 
   @override
-  Future<bool> esZipValido(File file) async {
+  Future<String?> extraerTexto(File pdfFile) async {
     try {
-      final bytes = await file.readAsBytes();
-      ZipDecoder().decodeBytes(bytes);
-      return true;
+      final bytes = await pdfFile.readAsBytes();
+      final document = PdfDocument(inputBytes: bytes);
+
+      final textExtractor = PdfTextExtractor(document);
+      final texto = textExtractor.extractText();
+
+      document.dispose();
+      return texto;
     } catch (e) {
-      return false;
+      throw FileException('Error al extraer texto del PDF: $e');
     }
   }
 }

@@ -1,8 +1,11 @@
+// lib/domain/usecases/procesar_lote_audios_usecase.dart
 import 'dart:io';
 import 'package:dartz/dartz.dart';
 import '../../core/errors/failures.dart';
+import '../../data/models/audio_file_wrapper.dart';
 import '../entities/lote_audios.dart';
 import '../entities/formulario_completo.dart';
+import '../entities/audio_metadata.dart';
 import '../repositories/formulario_repository.dart';
 
 class ProcesarLoteAudiosUseCase {
@@ -42,22 +45,38 @@ class ProcesarLoteAudiosUseCase {
 
     // Generar nombre de archivo sin sufijo
     final fileNameResult = await repository.generarNombreArchivo(
-      fechaNacimiento: metadataBase['fechaNacimiento'],
-      codigoConsultorio: metadataBase['codigoConsultorio'],
-      codigoHospital: metadataBase['codigoHospital'],
-      codigoFoco: metadataBase['codigoFoco'],
-      observaciones: metadataBase['observaciones'],
+      fechaNacimiento: metadataBase['fechaNacimiento'] as DateTime,
+      codigoConsultorio: metadataBase['codigoConsultorio'] as String,
+      codigoHospital: metadataBase['codigoHospital'] as String,
+      codigoFoco: metadataBase['codigoFoco'] as String,
+      observaciones: metadataBase['observaciones'] as String?,
     );
 
     return fileNameResult.fold(
       (failure) => Left(failure),
-      (fileName) => repository.enviarFormulario(
-        formulario: FormularioCompleto(
-          metadata: _crearMetadata(metadataBase, ''),
+      (fileName) async {
+        // Crear wrapper del archivo
+        final audioFile = AudioFileWrapper(
+          filePath: audio.path,
+          fileName: audio.nombre,
+          size: await File(audio.path).length(),
+        );
+
+        // Crear metadata
+        final metadata = _crearMetadata(metadataBase, '');
+
+        // Crear formulario
+        final formulario = FormularioCompleto(
+          metadata: metadata,
           fileName: fileName,
-        ),
-        audioFile: File(audio.path),
-      ),
+        );
+
+        // Enviar formulario
+        return repository.enviarFormulario(
+          formulario: formulario,
+          audioFile: audioFile,
+        );
+      },
     );
   }
 
@@ -78,25 +97,39 @@ class ProcesarLoteAudiosUseCase {
 
       // Generar nombre de archivo con sufijo
       final fileNameResult = await repository.generarNombreArchivo(
-        fechaNacimiento: metadataBase['fechaNacimiento'],
-        codigoConsultorio: metadataBase['codigoConsultorio'],
-        codigoHospital: metadataBase['codigoHospital'],
-        codigoFoco: metadataBase['codigoFoco'],
-        observaciones: metadataBase['observaciones'],
+        fechaNacimiento: metadataBase['fechaNacimiento'] as DateTime,
+        codigoConsultorio: metadataBase['codigoConsultorio'] as String,
+        codigoHospital: metadataBase['codigoHospital'] as String,
+        codigoFoco: metadataBase['codigoFoco'] as String,
+        observaciones: metadataBase['observaciones'] as String?,
       );
 
       final result = await fileNameResult.fold(
-        (failure) => Left(failure),
-        (fileName) {
+        (failure) async => Left<Failure, void>(failure),
+        (fileName) async {
           // Insertar sufijo antes de .wav
           final fileNameConSufijo = fileName.replaceAll('.wav', '-$sufijo.wav');
 
+          // Crear wrapper del archivo
+          final audioFile = AudioFileWrapper(
+            filePath: audio.path,
+            fileName: audio.nombre,
+            size: await File(audio.path).length(),
+          );
+
+          // Crear metadata
+          final metadata = _crearMetadata(metadataBase, sufijo);
+
+          // Crear formulario
+          final formulario = FormularioCompleto(
+            metadata: metadata,
+            fileName: fileNameConSufijo,
+          );
+
+          // Enviar formulario
           return repository.enviarFormulario(
-            formulario: FormularioCompleto(
-              metadata: _crearMetadata(metadataBase, sufijo),
-              fileName: fileNameConSufijo,
-            ),
-            audioFile: File(audio.path),
+            formulario: formulario,
+            audioFile: audioFile,
           );
         },
       );
@@ -110,9 +143,23 @@ class ProcesarLoteAudiosUseCase {
     return const Right(null);
   }
 
-  dynamic _crearMetadata(Map<String, dynamic> base, String sufijo) {
-    // Aquí deberías crear tu AudioMetadata con los datos base
-    // y el sufijo si es necesario
-    return base; // Placeholder
+  AudioMetadata _crearMetadata(Map<String, dynamic> base, String sufijo) {
+    final fechaNacimiento = base['fechaNacimiento'] as DateTime;
+    final edad = DateTime.now().difference(fechaNacimiento).inDays ~/ 365;
+
+    return AudioMetadata(
+      fechaNacimiento: fechaNacimiento,
+      edad: edad,
+      fechaGrabacion: DateTime.now(),
+      urlAudio: '', // Se actualizará después de subir
+      hospital: base['hospital'] as String,
+      codigoHospital: base['codigoHospital'] as String,
+      consultorio: base['consultorio'] as String,
+      codigoConsultorio: base['codigoConsultorio'] as String,
+      estado: base['estado'] as String,
+      focoAuscultacion: base['focoAuscultacion'] as String,
+      codigoFoco: base['codigoFoco'] as String,
+      observaciones: base['observaciones'] as String?,
+    );
   }
 }

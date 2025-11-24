@@ -1,3 +1,6 @@
+// lib/domain/entities/pdf_info.dart
+import 'package:equatable/equatable.dart';
+
 /// Información extraída de un PDF
 class PdfInfo extends Equatable {
   final String pdfPath;
