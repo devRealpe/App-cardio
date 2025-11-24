@@ -6,26 +6,28 @@ plugins {
 
 android {
     namespace = "com.example.app_ascs"
-    compileSdk = flutter.compileSdkVersion
+    // ✅ ACTUALIZADO: SDK 36 requerido por plugins
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        // ✅ ACTUALIZADO: Java 17 para compatibilidad con AGP 8.9+
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_1_8
+        jvmTarget = "17"
     }
 
     defaultConfig {
         applicationId = "com.example.app_ascs"
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        // ✅ minSdk debe ser al menos 24
+        minSdk = 24
+        // ✅ targetSdk 35 (no necesita ser 36)
+        targetSdk = 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        minSdkVersion 24 // Update this line
-        targetSdkVersion 33
 
         // Configuración para OAuth de Google
         manifestPlaceholders += [
@@ -36,7 +38,7 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.debug
-            // Optimizaciones para producción (opcional)
+            // Optimizaciones para producción
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
@@ -53,9 +55,10 @@ flutter {
     source = "../.."
 }
 
-// Añade esta sección para Firebase (opcional pero recomendado)
 dependencies {
-    implementation platform('com.google.firebase:firebase-bom:32.8.0')
+    // ✅ ACTUALIZADO: Versiones más recientes compatibles con SDK 36
+    implementation platform('com.google.firebase:firebase-bom:33.7.0')
     implementation 'com.google.firebase:firebase-analytics'
-    implementation 'com.google.android.gms:play-services-auth:21.1.0'
+    // ✅ ACTUALIZADO: Versión que soluciona el error de NetworkCapability
+    implementation 'com.google.android.gms:play-services-auth:21.3.0'
 }
