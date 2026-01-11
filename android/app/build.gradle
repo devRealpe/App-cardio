@@ -1,0 +1,58 @@
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
+android {
+    namespace = "com.example.app_ascs"
+    compileSdk = 36
+    ndkVersion = flutter.ndkVersion
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = "1.8"  
+    }
+
+    defaultConfig {
+        applicationId = "com.example.app_ascs"
+        minSdk = 24 
+        targetSdk = 34
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
+
+        // Configuración para OAuth de Google
+        manifestPlaceholders += [
+            'appAuthRedirectScheme': 'com.googleusercontent.apps.385400839963'
+        ]
+    }
+
+    buildTypes {
+        release {
+            signingConfig = signingConfigs.debug
+            // Optimizaciones para producción 
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    // Configuración específica para Google Drive
+    packagingOptions {
+        resources.excludes += "META-INF/*"
+    }
+}
+
+flutter {
+    source = "../.."
+}
+
+dependencies {
+    implementation platform('com.google.firebase:firebase-bom:32.8.0')
+    implementation 'com.google.firebase:firebase-analytics'
+    implementation 'com.google.android.gms:play-services-auth:21.1.0'
+}

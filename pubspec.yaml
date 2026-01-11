@@ -1,0 +1,77 @@
+name: app_ascs
+description: "Sistema de etiquetado de sonidos cardíacos para ASCS"
+publish_to: "none"
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # UI y Recursos
+  cupertino_icons: ^1.0.8
+  flutter_launcher_icons: ^0.14.4
+
+  # Selección de archivos
+  file_picker: ^8.1.3
+
+  # Autenticación y servicios de Google
+  google_sign_in: ^6.2.2
+  googleapis: ^13.2.0
+  googleapis_auth: ^1.6.0
+
+  # HTTP y networking
+  http: ^1.2.2
+  http_parser: ^4.1.1
+
+  # Sistema de archivos
+  path_provider: ^2.1.5
+
+  # AWS Amplify - ACTUALIZADO a versiones más recientes
+  amplify_flutter: ^2.7.0
+  amplify_storage_s3: ^2.7.0
+  amplify_core: ^2.7.0
+  amplify_auth_cognito: ^2.7.0
+  amplify_api: ^2.7.0
+
+  # Conectividad
+  connectivity_plus: ^6.1.2
+
+  # State Management - BLoC
+  flutter_bloc: ^8.1.6
+  bloc: ^8.1.4
+  equatable: ^2.0.7
+
+  # Programación funcional
+  dartz: ^0.10.1
+
+  # Inyección de dependencias
+  get_it: ^8.0.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  # Linting y análisis
+  flutter_lints: ^5.0.0
+
+  # Testing
+  mockito: ^5.4.4
+  bloc_test: ^9.1.7
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/imagenes/foco_auscultacion.jpg
+    - assets/config/medical_config.json
+
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/icons/Corazon.png"
+  adaptive_icon_background: "#84A0E3"
+  adaptive_icon_foreground: "assets/icons/Corazon.png"
